@@ -501,17 +501,11 @@ def process_user_query(user_query):
 def main():
     st.title("FloatChat AI - ARGO Data Explorer")
     
-    # Query input and button
-    user_query = st.text_area(
-        "Ask about ARGO data",
-        height=100,
-        placeholder="e.g., Show me temperature profiles for floats near the equator in the last month",
-        key="query_input"
-    )
-    
-    process_btn = st.button("Query Data", type="primary")
-    
-    # Initialize session state
+    # Initialize session state for query input
+    if 'query_text' not in st.session_state:
+        st.session_state.query_text = ""
+    if 'should_populate' not in st.session_state:
+        st.session_state.should_populate = False
     if 'results' not in st.session_state:
         st.session_state.results = None
     if 'df' not in st.session_state:
@@ -519,27 +513,42 @@ def main():
     if 'sql' not in st.session_state:
         st.session_state.sql = None
     
+    # Query input and button
+    user_query = st.text_area(
+        "Ask about ARGO data",
+        height=100,
+        placeholder="e.g., Show me temperature profiles for floats near the equator in the last month",
+        value=st.session_state.query_text,
+        key="query_input"
+    )
+    
+    # Update session state when user types
+    if user_query != st.session_state.query_text:
+        st.session_state.query_text = user_query
+    
+    process_btn = st.button("Query Data", type="primary")
+    
     # Process query if button is clicked
     if process_btn and user_query:
         if len(user_query.strip()) < 5:
             st.error("Please enter a more specific query (at least 5 characters)")
-            return
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        status_text.text("🔄 Connecting to LLM...")
-        progress_bar.progress(25)
-        natural_response, df, sql_query = process_user_query(user_query)
-        progress_bar.progress(75)
-        status_text.text("📊 Preparing results...")
-        if df is not None:
-            st.session_state.results = natural_response
-            st.session_state.df = df
-            st.session_state.sql = sql_query
-        progress_bar.progress(100)
-        status_text.text("✅ Complete!")
-        time.sleep(0.5)
-        progress_bar.empty()
-        status_text.empty()
+        else:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            status_text.text("🔄 Connecting to LLM...")
+            progress_bar.progress(25)
+            natural_response, df, sql_query = process_user_query(user_query)
+            progress_bar.progress(75)
+            status_text.text("📊 Preparing results...")
+            if df is not None:
+                st.session_state.results = natural_response
+                st.session_state.df = df
+                st.session_state.sql = sql_query
+            progress_bar.progress(100)
+            status_text.text("✅ Complete!")
+            time.sleep(0.5)
+            progress_bar.empty()
+            status_text.empty()
     
     # Display results if available
     if st.session_state.df is not None:
@@ -592,14 +601,16 @@ def main():
             "Show me one float which is farthest from chennai",
             "show me float having highest temperature among all other floats"
         ]
-        for example in examples:
-            if st.button(example, key=str(uuid.uuid4()), help="Click to try this query", type="secondary"):
-                st.session_state.query_input = example
-                natural_response, df, sql_query = process_user_query(example)
-                if df is not None:
-                    st.session_state.results = natural_response
-                    st.session_state.df = df
-                    st.session_state.sql = sql_query
+        for idx, example in enumerate(examples):
+            # Use a unique key for each button
+            if st.button(example, key=f"example_{idx}", help="Click to populate this query", type="secondary"):
+                # Update the query text in session state and clear previous results
+                st.session_state.query_text = example
+                st.session_state.results = None
+                st.session_state.df = None
+                st.session_state.sql = None
+                # Force a rerun to update the text area
+                st.rerun()
     
     with st.expander("Query Tips"):
         show_query_tips()
